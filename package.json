@@ -1,0 +1,43 @@
+{
+  "name": "feedbackhive-cli",
+  "version": "0.1.0",
+  "description": "Official FeedbackHive command-line interface",
+  "license": "MIT",
+  "bin": {
+    "fbh": "dist/index.js",
+    "feedbackhive": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "feedbackhive",
+    "cli",
+    "mcp"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okzea/feedbackhive-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/okzea/feedbackhive-cli/issues"
+  },
+  "homepage": "https://github.com/okzea/feedbackhive-cli#readme",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "dependencies": {
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
