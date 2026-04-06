@@ -84,8 +84,38 @@ function formatDateSummary(value: unknown): string {
   return value.replace("T", " ").replace(".000Z", "Z")
 }
 
+const CLI_ASCII_ART = String.raw`
+                                                 
+                                                 
+                                                 
+                                                 
+                  @           @:                 
+                  #@         @#                  
+                    @@@@@@@@@                    
+                   @@@@@@@@@@@                   
+                -  @@%*****%@@  -                
+       .@@@@@   @@@  @@@@@@@  @@@   @@@@@=       
+         @@@@@@=   @@  +#+  @@   :@@@@@@         
+             @@@@@@%  .    . %@@@@@@             
+            @@#@@@             @@@#@@            
+            @@@@   @@@@@@@@@@@   @@%@            
+            @@@  @#           +@  @@@            
+            @@* @. @@@@@@@@@@@..@ -@@            
+              = @@@#         *@@@ :.             
+                *               *                
+                 @%@@@@@@@@@@@%@                 
+                  -@@@@@@@@@@@+                  
+                                                 
+                       -@=                       
+                                                 
+                                                 
+                                                 
+                                                 
+`
+
 export function renderHelpText(): string {
   return [
+    CLI_ASCII_ART,
     "FeedbackHive CLI",
     "",
     "Usage:",
@@ -93,10 +123,13 @@ export function renderHelpText(): string {
     `  ${CLI_COMMAND_ALIAS} <group> <action> [options] [arguments]`,
     "",
     "Auth:",
+    `  ${CLI_PRIMARY_COMMAND} login`,
     `  ${CLI_PRIMARY_COMMAND} auth login`,
     `  ${CLI_PRIMARY_COMMAND} auth login --method token --token fhp_xxx`,
     `  ${CLI_PRIMARY_COMMAND} auth login --method web`,
+    `  ${CLI_PRIMARY_COMMAND} status`,
     `  ${CLI_PRIMARY_COMMAND} auth status`,
+    `  ${CLI_PRIMARY_COMMAND} logout`,
     `  ${CLI_PRIMARY_COMMAND} auth logout`,
     "",
     "Projects:",

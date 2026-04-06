@@ -43,6 +43,15 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     optionTokens.push(token)
   }
 
+  const authAliases = new Set(["login", "logout", "status"])
+  if (
+    commandParts.length === 1 &&
+    authAliases.has(commandParts[0]) &&
+    commandParts[0] !== "auth"
+  ) {
+    commandParts.unshift("auth")
+  }
+
   const flags: Record<string, FlagValue> = {}
   const positionals: string[] = []
   let parsePositionalsOnly = false
