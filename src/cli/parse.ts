@@ -10,6 +10,26 @@ export type ParsedCliArgs = {
   positionals: string[]
 }
 
+const FLAG_NAMES_WITHOUT_VALUES = new Set([
+  "allow-comments",
+  "help",
+  "include-content",
+  "json",
+  "pinned",
+  "require-approval",
+  "task-pricing-enabled",
+])
+
+function getExplicitBooleanFlagValue(
+  nextToken: string | undefined
+): string | undefined {
+  if (nextToken === "true" || nextToken === "false") {
+    return nextToken
+  }
+
+  return undefined
+}
+
 function appendFlagValue(
   flags: Record<string, FlagValue>,
   name: string,
@@ -31,33 +51,71 @@ function appendFlagValue(
 }
 
 export function parseCliArgs(argv: string[]): ParsedCliArgs {
+  const flags: Record<string, FlagValue> = {}
+  const positionals: string[] = []
   const commandParts: string[] = []
-  const optionTokens: string[] = []
+  const commandIndexes = new Set<number>()
 
-  for (const token of argv) {
-    if (commandParts.length < 2 && token !== "--" && !token.startsWith("-")) {
-      commandParts.push(token)
+  for (
+    let index = 0;
+    index < argv.length && commandParts.length < 2;
+    index += 1
+  ) {
+    const token = argv[index]
+
+    if (token === "--help" || token === "-h") {
+      if (getExplicitBooleanFlagValue(argv[index + 1])) {
+        index += 1
+      }
       continue
     }
 
-    optionTokens.push(token)
+    if (token === "--") {
+      continue
+    }
+
+    if (token.startsWith("--no-")) {
+      continue
+    }
+
+    if (token.startsWith("--")) {
+      const withoutPrefix = token.slice(2)
+      const equalsIndex = withoutPrefix.indexOf("=")
+      if (equalsIndex >= 0) {
+        continue
+      }
+
+      if (FLAG_NAMES_WITHOUT_VALUES.has(withoutPrefix)) {
+        if (getExplicitBooleanFlagValue(argv[index + 1])) {
+          index += 1
+        }
+        continue
+      }
+
+      const nextToken = argv[index + 1]
+      const canTakeValue =
+        nextToken !== undefined &&
+        nextToken !== "--" &&
+        !nextToken.startsWith("--")
+
+      if (canTakeValue) {
+        index += 1
+      }
+      continue
+    }
+
+    commandParts.push(token)
+    commandIndexes.add(index)
   }
 
-  const authAliases = new Set(["login", "logout", "status"])
-  if (
-    commandParts.length === 1 &&
-    authAliases.has(commandParts[0]) &&
-    commandParts[0] !== "auth"
-  ) {
-    commandParts.unshift("auth")
-  }
-
-  const flags: Record<string, FlagValue> = {}
-  const positionals: string[] = []
   let parsePositionalsOnly = false
 
-  for (let index = 0; index < optionTokens.length; index += 1) {
-    const token = optionTokens[index]
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index]
+
+    if (commandIndexes.has(index)) {
+      continue
+    }
 
     if (parsePositionalsOnly) {
       positionals.push(token)
@@ -70,7 +128,13 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     }
 
     if (token === "--help" || token === "-h") {
-      flags.help = true
+      const explicitBooleanValue = getExplicitBooleanFlagValue(argv[index + 1])
+      if (explicitBooleanValue) {
+        appendFlagValue(flags, "help", explicitBooleanValue)
+        index += 1
+      } else {
+        flags.help = true
+      }
       continue
     }
 
@@ -90,9 +154,23 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
         continue
       }
 
-      const nextToken = optionTokens[index + 1]
+      if (FLAG_NAMES_WITHOUT_VALUES.has(withoutPrefix)) {
+        const explicitBooleanValue = getExplicitBooleanFlagValue(
+          argv[index + 1]
+        )
+        if (explicitBooleanValue) {
+          appendFlagValue(flags, withoutPrefix, explicitBooleanValue)
+          index += 1
+        } else {
+          appendFlagValue(flags, withoutPrefix, true)
+        }
+        continue
+      }
+
+      const nextToken = argv[index + 1]
       const canTakeValue =
         nextToken !== undefined &&
+        !commandIndexes.has(index + 1) &&
         nextToken !== "--" &&
         !nextToken.startsWith("--")
 
@@ -112,7 +190,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     group: commandParts[0],
     action: commandParts[1],
     flags,
-    helpRequested: flags.help === true,
+    helpRequested: getBooleanFlag(flags, "help") === true,
     positionals,
   }
 }
@@ -200,12 +278,19 @@ export function getPositionalOrFlag(
   parsed: ParsedCliArgs,
   positionalIndex: number,
   flagName: string,
-  label: string
+  label: string,
+  precedingFlagNames: string[] = []
 ): string {
   const fromFlag = getStringFlag(parsed.flags, flagName)
   if (fromFlag !== undefined) return fromFlag
 
-  const fromPositional = parsed.positionals[positionalIndex]
+  const adjustedPositionalIndex =
+    positionalIndex -
+    precedingFlagNames.filter(
+      (precedingFlagName) =>
+        getStringFlag(parsed.flags, precedingFlagName) !== undefined
+    ).length
+  const fromPositional = parsed.positionals[adjustedPositionalIndex]
   if (fromPositional) return fromPositional
 
   throw new CliError(`${label} is required`)

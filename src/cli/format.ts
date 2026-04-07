@@ -20,17 +20,38 @@ type CommandResponse = {
   kind: CommandKind
 }
 
+const ANSI_ESCAPE_SEQUENCE_PATTERN =
+  /(?:\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\))|(?:[\u001B\u009B][[\]()#;?]*(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/g
+
 function truncate(value: string, maxWidth: number): string {
   if (value.length <= maxWidth) return value
   return `${value.slice(0, Math.max(0, maxWidth - 3))}...`
 }
 
+function sanitizeCliText(value: string): string {
+  return value
+    .replace(ANSI_ESCAPE_SEQUENCE_PATTERN, "")
+    .replace(CONTROL_CHARACTER_PATTERN, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 function stringifyValue(value: unknown): string {
   if (value === null || value === undefined) return "-"
-  if (typeof value === "boolean") return value ? "yes" : "no"
-  if (Array.isArray(value)) return value.join(", ")
-  if (typeof value === "object") return JSON.stringify(value)
-  return String(value)
+
+  const renderedValue =
+    typeof value === "boolean"
+      ? value
+        ? "yes"
+        : "no"
+      : Array.isArray(value)
+        ? value.join(", ")
+        : typeof value === "object"
+          ? JSON.stringify(value)
+          : String(value)
+
+  return sanitizeCliText(renderedValue)
 }
 
 function renderTable(
@@ -84,38 +105,12 @@ function formatDateSummary(value: unknown): string {
   return value.replace("T", " ").replace(".000Z", "Z")
 }
 
-const CLI_ASCII_ART = String.raw`
-                                                 
-                                                 
-                                                 
-                                                 
-                  @           @:                 
-                  #@         @#                  
-                    @@@@@@@@@                    
-                   @@@@@@@@@@@                   
-                -  @@%*****%@@  -                
-       .@@@@@   @@@  @@@@@@@  @@@   @@@@@=       
-         @@@@@@=   @@  +#+  @@   :@@@@@@         
-             @@@@@@%  .    . %@@@@@@             
-            @@#@@@             @@@#@@            
-            @@@@   @@@@@@@@@@@   @@%@            
-            @@@  @#           +@  @@@            
-            @@* @. @@@@@@@@@@@..@ -@@            
-              = @@@#         *@@@ :.             
-                *               *                
-                 @%@@@@@@@@@@@%@                 
-                  -@@@@@@@@@@@+                  
-                                                 
-                       -@=                       
-                                                 
-                                                 
-                                                 
-                                                 
-`
+function renderDetailBody(label: string, value: string): string {
+  return `\n${label}:\n${sanitizeCliText(value)}`
+}
 
 export function renderHelpText(): string {
   return [
-    CLI_ASCII_ART,
     "FeedbackHive CLI",
     "",
     "Usage:",
@@ -200,14 +195,19 @@ function renderProjectDetail(data: Record<string, unknown>): string {
   ]
 
   if (typeof project.description === "string" && project.description) {
-    lines.push(`\nDescription:\n${project.description}`)
+    lines.push(renderDetailBody("Description", project.description))
   }
 
   const byStatus = Array.isArray(taskCounts.byStatus) ? taskCounts.byStatus : []
   if (byStatus.length > 0) {
     lines.push(
       `\nTask counts:\n${byStatus
-        .map((entry) => `${entry.status ?? "unknown"}=${entry.count}`)
+        .map(
+          (entry) =>
+            `${sanitizeCliText(entry.status ?? "unknown")}=${stringifyValue(
+              entry.count
+            )}`
+        )
         .join(", ")}`
     )
   }
@@ -238,7 +238,7 @@ function renderTaskDetail(data: Record<string, unknown>): string {
   ]
 
   if (typeof task.description === "string" && task.description) {
-    lines.push(`\nDescription:\n${task.description}`)
+    lines.push(renderDetailBody("Description", task.description))
   }
 
   return lines.join("\n")
@@ -262,7 +262,7 @@ function renderCommentDetail(data: Record<string, unknown>): string {
   ]
 
   if (typeof comment.content === "string") {
-    lines.push(`\nContent:\n${comment.content}`)
+    lines.push(renderDetailBody("Content", comment.content))
   }
 
   return lines.join("\n")
@@ -289,7 +289,7 @@ function renderNoteDetail(data: Record<string, unknown>): string {
   ]
 
   if (typeof note.content === "string") {
-    lines.push(`\nContent:\n${note.content}`)
+    lines.push(renderDetailBody("Content", note.content))
   }
 
   return lines.join("\n")
@@ -343,44 +343,31 @@ export function renderCommandResponse(
           { key: "title", label: "Title", maxWidth: 28 },
           { key: "status", label: "Status", maxWidth: 12 },
           { key: "priority", label: "Priority", maxWidth: 10 },
-          { key: "assignee", label: "Assignee", maxWidth: 18 },
           { key: "updatedAt", label: "Updated", maxWidth: 24 },
         ],
-        (response.data.tasks as Array<Record<string, unknown>>).map((task) => ({
-          ...task,
-          assignee:
-            (
-              task.assignee as {
-                name?: string | null
-                email?: string | null
-              } | null
-            )?.name ??
-            (task.assignee as { email?: string | null } | null)?.email ??
-            "-",
-          updatedAt: formatDateSummary(task.updatedAt),
-        }))
+        (response.data.tasks as Array<Record<string, unknown>>).map(
+          (task) => ({
+            ...task,
+            updatedAt: formatDateSummary(task.updatedAt),
+          })
+        )
       )
     case "comments-list":
       return renderTable(
         [
           { key: "id", label: "ID", maxWidth: 18 },
-          { key: "author", label: "Author", maxWidth: 18 },
-          { key: "content", label: "Content", maxWidth: 40 },
+          { key: "author", label: "Author", maxWidth: 24 },
           { key: "createdAt", label: "Created", maxWidth: 24 },
+          { key: "updatedAt", label: "Updated", maxWidth: 24 },
+          { key: "content", label: "Content", maxWidth: 40 },
         ],
         (response.data.comments as Array<Record<string, unknown>>).map(
           (comment) => ({
             ...comment,
-            author:
-              (
-                comment.author as {
-                  name?: string | null
-                  email?: string | null
-                } | null
-              )?.name ??
-              (comment.author as { email?: string | null } | null)?.email ??
-              "-",
+            author: comment.authorName ?? comment.authorEmail ?? "-",
+            content: comment.content ?? "",
             createdAt: formatDateSummary(comment.createdAt),
+            updatedAt: formatDateSummary(comment.updatedAt),
           })
         )
       )
@@ -388,24 +375,15 @@ export function renderCommandResponse(
       return renderTable(
         [
           { key: "id", label: "ID", maxWidth: 18 },
-          { key: "title", label: "Title", maxWidth: 24 },
-          { key: "isPinned", label: "Pinned", maxWidth: 6 },
-          { key: "folder", label: "Folder", maxWidth: 16 },
-          { key: "author", label: "Author", maxWidth: 18 },
+          { key: "title", label: "Title", maxWidth: 28 },
+          { key: "folder", label: "Folder", maxWidth: 20 },
+          { key: "pinned", label: "Pinned", maxWidth: 6 },
           { key: "updatedAt", label: "Updated", maxWidth: 24 },
         ],
         (response.data.notes as Array<Record<string, unknown>>).map((note) => ({
           ...note,
-          author:
-            (
-              note.author as {
-                name?: string | null
-                email?: string | null
-              } | null
-            )?.name ??
-            (note.author as { email?: string | null } | null)?.email ??
-            "-",
-          folder: (note.folder as { name?: string | null } | null)?.name ?? "-",
+          folder: note.folderName ?? "-",
+          pinned: note.isPinned,
           updatedAt: formatDateSummary(note.updatedAt),
         }))
       )
@@ -418,6 +396,6 @@ export function renderCommandResponse(
     case "note-detail":
       return renderNoteDetail(response.data)
     default:
-      return JSON.stringify(response.data, null, 2)
+      return "Done."
   }
 }

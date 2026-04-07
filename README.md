@@ -47,6 +47,14 @@ Explicit web login:
 fbh auth login --method web
 ```
 
+Short auth aliases also work:
+
+```bash
+fbh login
+fbh status
+fbh logout
+```
+
 ## Commands
 
 Projects:
@@ -99,6 +107,7 @@ Resolution order:
 Environment variables:
 
 ```bash
+FBH_URL
 FBH_TOKEN
 FBH_CONFIG
 ```

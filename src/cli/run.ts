@@ -63,6 +63,12 @@ type CommandResponse = {
   kind: OutputKind
 }
 
+type CommandValidationSpec = {
+  allowedFlags: Set<string>
+  maxPositionals: number
+  positionalFlagNames?: Array<string | undefined>
+}
+
 type RunCliOptions = {
   env?: EnvLike
   fetchImpl?: typeof fetch
@@ -79,10 +85,156 @@ type RunCliOptions = {
   output?: NodeJS.WritableStream
 }
 
+const GLOBAL_FLAG_NAMES = new Set(["config", "help", "json", "token", "url"])
+
+const COMMAND_VALIDATION_SPECS: Record<
+  string,
+  Record<string, CommandValidationSpec>
+> = {
+  auth: {
+    login: {
+      allowedFlags: new Set(["method"]),
+      maxPositionals: 0,
+    },
+    logout: {
+      allowedFlags: new Set(),
+      maxPositionals: 0,
+    },
+    status: {
+      allowedFlags: new Set(),
+      maxPositionals: 0,
+    },
+  },
+  comments: {
+    create: {
+      allowedFlags: new Set(["content", "project-id", "task-id"]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "task-id"],
+    },
+    list: {
+      allowedFlags: new Set(["limit", "project-id", "task-id"]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "task-id"],
+    },
+  },
+  notes: {
+    create: {
+      allowedFlags: new Set([
+        "content",
+        "folder-id",
+        "pinned",
+        "project-id",
+        "title",
+      ]),
+      maxPositionals: 1,
+      positionalFlagNames: ["project-id"],
+    },
+    get: {
+      allowedFlags: new Set(["note-id", "project-id"]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "note-id"],
+    },
+    list: {
+      allowedFlags: new Set([
+        "cursor",
+        "include-content",
+        "limit",
+        "project-id",
+      ]),
+      maxPositionals: 1,
+      positionalFlagNames: ["project-id"],
+    },
+  },
+  projects: {
+    create: {
+      allowedFlags: new Set([
+        "allow-comments",
+        "description",
+        "require-approval",
+        "status",
+        "tag",
+        "task-pricing-currency",
+        "task-pricing-enabled",
+        "task-statuses-json",
+        "title",
+        "visibility",
+      ]),
+      maxPositionals: 0,
+    },
+    get: {
+      allowedFlags: new Set(["project-id"]),
+      maxPositionals: 1,
+      positionalFlagNames: ["project-id"],
+    },
+    list: {
+      allowedFlags: new Set(["limit", "status", "tag", "visibility"]),
+      maxPositionals: 0,
+    },
+  },
+  tasks: {
+    create: {
+      allowedFlags: new Set([
+        "assignee-id",
+        "description",
+        "due-date",
+        "price",
+        "priority",
+        "project-id",
+        "status",
+        "tag",
+        "task-group-id",
+        "title",
+      ]),
+      maxPositionals: 1,
+      positionalFlagNames: ["project-id"],
+    },
+    get: {
+      allowedFlags: new Set(["project-id", "task-id"]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "task-id"],
+    },
+    list: {
+      allowedFlags: new Set([
+        "assignee-id",
+        "cursor",
+        "limit",
+        "project-id",
+        "status",
+        "updated-since",
+      ]),
+      maxPositionals: 1,
+      positionalFlagNames: ["project-id"],
+    },
+  },
+}
+
 function cleanObject<T extends Record<string, unknown>>(input: T): T {
   return Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined)
   ) as T
+}
+
+function sanitizeConfigForOutput(config: ResolvedCliConfig): Omit<
+  ResolvedCliConfig,
+  "savedConfig" | "token"
+> & {
+  savedConfig: Omit<
+    NonNullable<ResolvedCliConfig["savedConfig"]>,
+    "token"
+  > | null
+} {
+  const { savedConfig, token: _token, ...rest } = config
+
+  return {
+    ...rest,
+    savedConfig: savedConfig
+      ? {
+          authMode: savedConfig.authMode,
+          url: savedConfig.url,
+          version: savedConfig.version,
+        }
+      : null,
+  }
 }
 
 function parseJsonFlag(
@@ -101,9 +253,7 @@ function parseJsonFlag(
 
 function requireAuthConfig(config: ResolvedCliConfig) {
   if (!config.token) {
-    throw new CliError(
-      "Authentication required. Run: fbh auth login"
-    )
+    throw new CliError("Authentication required. Run: fbh auth login")
   }
 
   return {
@@ -264,12 +414,14 @@ async function executeAuthCommand(
       }
     }
     case "status": {
+      const configForOutput = sanitizeConfigForOutput(config)
+
       if (!config.url || !config.token) {
         return {
           kind: "auth-status",
           config,
           data: {
-            config,
+            config: configForOutput,
             connected: false,
             projectCount: 0,
           },
@@ -282,11 +434,9 @@ async function executeAuthCommand(
         kind: "auth-status",
         config,
         data: {
-          config,
+          config: configForOutput,
           connected: true,
-          projectCount: Array.isArray(result.projects)
-            ? result.projects.length
-            : 0,
+          projectCount: Array.isArray(result.projects) ? result.projects.length : 0,
         },
       }
     }
@@ -300,10 +450,9 @@ async function executeProjectsCommand(
   config: ResolvedCliConfig,
   fetchImpl?: typeof fetch
 ): Promise<CommandResponse> {
-  const auth = requireAuthConfig(config)
-
   switch (parsed.action) {
     case "list": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = ListProjectsSchema.parse(
         cleanObject({
           limit: getNumberFlag(parsed.flags, "limit"),
@@ -324,6 +473,7 @@ async function executeProjectsCommand(
       return { kind: "projects-list", data: result }
     }
     case "get": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = GetProjectSchema.parse({
         projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
       })
@@ -339,6 +489,7 @@ async function executeProjectsCommand(
       return { kind: "project-detail", data: result }
     }
     case "create": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = CreateProjectSchema.parse(
         cleanObject({
           allowComments: getBooleanFlag(parsed.flags, "allow-comments"),
@@ -380,10 +531,9 @@ async function executeTasksCommand(
   config: ResolvedCliConfig,
   fetchImpl?: typeof fetch
 ): Promise<CommandResponse> {
-  const auth = requireAuthConfig(config)
-
   switch (parsed.action) {
     case "list": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = ListTasksSchema.parse(
         cleanObject({
           assigneeId: getStringFlag(parsed.flags, "assignee-id"),
@@ -406,9 +556,12 @@ async function executeTasksCommand(
       return { kind: "tasks-list", data: result }
     }
     case "get": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = GetTaskSchema.parse({
         projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
-        taskId: getPositionalOrFlag(parsed, 1, "task-id", "Task ID"),
+        taskId: getPositionalOrFlag(parsed, 1, "task-id", "Task ID", [
+          "project-id",
+        ]),
       })
 
       const result = await callMcpTool<Record<string, unknown>>({
@@ -422,6 +575,7 @@ async function executeTasksCommand(
       return { kind: "task-detail", data: result }
     }
     case "create": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = CreateTaskSchema.parse(
         cleanObject({
           assigneeId: getStringFlag(parsed.flags, "assignee-id"),
@@ -457,10 +611,9 @@ async function executeNotesCommand(
   config: ResolvedCliConfig,
   fetchImpl?: typeof fetch
 ): Promise<CommandResponse> {
-  const auth = requireAuthConfig(config)
-
   switch (parsed.action) {
     case "list": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = ListNotesSchema.parse(
         cleanObject({
           cursor: getStringFlag(parsed.flags, "cursor"),
@@ -481,8 +634,11 @@ async function executeNotesCommand(
       return { kind: "notes-list", data: result }
     }
     case "get": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = GetNoteSchema.parse({
-        noteId: getPositionalOrFlag(parsed, 1, "note-id", "Note ID"),
+        noteId: getPositionalOrFlag(parsed, 1, "note-id", "Note ID", [
+          "project-id",
+        ]),
         projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
       })
 
@@ -497,6 +653,7 @@ async function executeNotesCommand(
       return { kind: "note-detail", data: result }
     }
     case "create": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = CreateNoteSchema.parse(
         cleanObject({
           content: getStringFlag(parsed.flags, "content"),
@@ -527,15 +684,16 @@ async function executeCommentsCommand(
   config: ResolvedCliConfig,
   fetchImpl?: typeof fetch
 ): Promise<CommandResponse> {
-  const auth = requireAuthConfig(config)
-
   switch (parsed.action) {
     case "list": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = ListCommentsSchema.parse(
         cleanObject({
           limit: getNumberFlag(parsed.flags, "limit"),
           projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
-          taskId: getPositionalOrFlag(parsed, 1, "task-id", "Task ID"),
+          taskId: getPositionalOrFlag(parsed, 1, "task-id", "Task ID", [
+            "project-id",
+          ]),
         })
       )
 
@@ -550,11 +708,14 @@ async function executeCommentsCommand(
       return { kind: "comments-list", data: result }
     }
     case "create": {
+      const auth = requireAuthConfig(config)
       const argumentsInput = CreateCommentSchema.parse(
         cleanObject({
           content: getStringFlag(parsed.flags, "content"),
           projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
-          taskId: getPositionalOrFlag(parsed, 1, "task-id", "Task ID"),
+          taskId: getPositionalOrFlag(parsed, 1, "task-id", "Task ID", [
+            "project-id",
+          ]),
         })
       )
 
@@ -608,6 +769,59 @@ function getJsonOutput(parsed: ParsedCliArgs) {
   return getBooleanFlag(parsed.flags, "json") === true
 }
 
+function validateParsedCliArgs(parsed: ParsedCliArgs) {
+  const commandSpec =
+    parsed.group && parsed.action
+      ? COMMAND_VALIDATION_SPECS[parsed.group]?.[parsed.action]
+      : undefined
+
+  if (!commandSpec) return
+
+  const allowedFlags = new Set(GLOBAL_FLAG_NAMES)
+
+  for (const flagName of commandSpec.allowedFlags) {
+    allowedFlags.add(flagName)
+  }
+
+  const unsupportedFlags = Object.keys(parsed.flags).filter(
+    (flagName) => !allowedFlags.has(flagName)
+  )
+
+  if (unsupportedFlags.length > 0) {
+    const context =
+      parsed.group && parsed.action
+        ? `${parsed.group} ${parsed.action}`
+        : "this command"
+    const renderedFlags = unsupportedFlags
+      .map((flagName) => `--${flagName}`)
+      .join(", ")
+    throw new CliError(`Unknown flag for ${context}: ${renderedFlags}`)
+  }
+
+  const maxAllowedPositionals = getMaxAllowedPositionals(parsed, commandSpec)
+
+  if (parsed.positionals.length > maxAllowedPositionals) {
+    const extras = parsed.positionals.slice(maxAllowedPositionals).join(", ")
+    throw new CliError(
+      `Unexpected positional argument for ${parsed.group} ${parsed.action}: ${extras}`
+    )
+  }
+}
+
+function getMaxAllowedPositionals(
+  parsed: ParsedCliArgs,
+  commandSpec: CommandValidationSpec
+) {
+  if (!commandSpec.positionalFlagNames?.length) {
+    return commandSpec.maxPositionals
+  }
+
+  return commandSpec.positionalFlagNames.filter(
+    (flagName) =>
+      !flagName || getStringFlag(parsed.flags, flagName) === undefined
+  ).length
+}
+
 export async function runCli(
   argv: string[],
   options: RunCliOptions = {}
@@ -617,12 +831,19 @@ export async function runCli(
 
   try {
     const parsed = parseCliArgs(argv)
+    const jsonOutput = getJsonOutput(parsed)
+    validateParsedCliArgs(parsed)
+
+    if (parsed.helpRequested) {
+      stdout(renderCommandResponse({ kind: "help", data: {} }))
+      return 0
+    }
+
     const config = await resolveCliConfig(parsed, options.env)
     const response =
-      parsed.group === "auth" && parsed.action && !parsed.helpRequested
+      parsed.group === "auth" && parsed.action
         ? await executeAuthCommand(parsed, config, options.fetchImpl, options)
         : await executeCommand(parsed, config, options.fetchImpl)
-    const jsonOutput = getJsonOutput(parsed)
 
     stdout(
       jsonOutput && response.kind !== "help"

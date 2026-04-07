@@ -25,7 +25,7 @@ export function isInteractiveLoginAvailable(
 ): boolean {
   return Boolean(
     "isTTY" in input && (input as { isTTY?: boolean }).isTTY &&
-    "isTTY" in output && (output as { isTTY?: boolean }).isTTY
+      "isTTY" in output && (output as { isTTY?: boolean }).isTTY
   )
 }
 

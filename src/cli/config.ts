@@ -25,6 +25,14 @@ export type ResolvedCliConfig = {
 
 type EnvLike = Record<string, string | undefined>
 
+const IGNORED_CONFIG_ERROR_CODES = new Set([
+  "EACCES",
+  "EISDIR",
+  "ENOENT",
+  "ENOTDIR",
+  "EPERM",
+])
+
 export function getConfigPath(
   flags: ParsedCliArgs["flags"],
   env: EnvLike = process.env
@@ -56,12 +64,24 @@ export function normalizeBaseUrl(url: string): string {
   return `${parsed.origin}${normalizedPath}`
 }
 
+function getErrorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error && "code" in error
+    ? String((error as { code?: string }).code)
+    : undefined
+}
+
 export async function readCliConfig(
   configPath: string
 ): Promise<PersistedCliConfig | null> {
   try {
     const raw = await readFile(configPath, "utf8")
-    const parsed = JSON.parse(raw) as Partial<PersistedCliConfig>
+    let parsed: Partial<PersistedCliConfig>
+
+    try {
+      parsed = JSON.parse(raw) as Partial<PersistedCliConfig>
+    } catch {
+      return null
+    }
 
     if (
       parsed.version !== 1 ||
@@ -81,12 +101,9 @@ export async function readCliConfig(
       token: parsed.token,
     }
   } catch (error) {
-    const errorCode =
-      typeof error === "object" && error && "code" in error
-        ? String((error as { code?: string }).code)
-        : undefined
-
-    if (errorCode === "ENOENT") return null
+    if (IGNORED_CONFIG_ERROR_CODES.has(getErrorCode(error) ?? "")) {
+      return null
+    }
     throw error
   }
 }
@@ -99,14 +116,18 @@ export async function resolveCliConfig(
   const savedConfig = await readCliConfig(configPath)
 
   const rawFlagUrl = getStringFlag(parsed.flags, "url")
-  const flagUrl = rawFlagUrl ? normalizeBaseUrl(rawFlagUrl) : undefined
-  const envUrl = env.FBH_URL
-    ? normalizeBaseUrl(env.FBH_URL)
-    : undefined
+  const flagUrl = rawFlagUrl ? normalizeBaseUrl(rawFlagUrl.trim()) : undefined
+  const envUrl =
+    typeof env.FBH_URL === "string" && env.FBH_URL.trim()
+      ? normalizeBaseUrl(env.FBH_URL.trim())
+      : undefined
   const savedUrl = savedConfig?.url
 
-  const flagToken = getStringFlag(parsed.flags, "token")
-  const envToken = env.FBH_TOKEN
+  const flagToken = getStringFlag(parsed.flags, "token")?.trim() || undefined
+  const envToken =
+    typeof env.FBH_TOKEN === "string" && env.FBH_TOKEN.trim()
+      ? env.FBH_TOKEN.trim()
+      : undefined
   const savedToken = savedConfig?.token
 
   const resolvedUrl = flagUrl ?? envUrl ?? savedUrl ?? CLI_DEFAULT_BASE_URL
