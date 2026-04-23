@@ -12,7 +12,11 @@ type CommandKind =
   | "notes-list"
   | "project-detail"
   | "projects-list"
+  | "task-deleted"
   | "task-detail"
+  | "task-group-deleted"
+  | "task-group-detail"
+  | "task-groups-list"
   | "tasks-list"
 
 type CommandResponse = {
@@ -136,6 +140,16 @@ export function renderHelpText(): string {
     `  ${CLI_PRIMARY_COMMAND} tasks list <projectId> [--status pending]`,
     `  ${CLI_PRIMARY_COMMAND} tasks get <projectId> <taskId>`,
     `  ${CLI_PRIMARY_COMMAND} tasks create <projectId> --title "Ship CLI"`,
+    `  ${CLI_PRIMARY_COMMAND} tasks update <projectId> <taskId> [--title "..."] [--status done]`,
+    `  ${CLI_PRIMARY_COMMAND} tasks update <projectId> <taskId> --task-group-id <groupId>`,
+    `  ${CLI_PRIMARY_COMMAND} tasks update <projectId> <taskId> --clear-task-group`,
+    `  ${CLI_PRIMARY_COMMAND} tasks delete <projectId> <taskId>`,
+    "",
+    "Task groups:",
+    `  ${CLI_PRIMARY_COMMAND} task-groups list <projectId>`,
+    `  ${CLI_PRIMARY_COMMAND} task-groups create <projectId> --name "Launches"`,
+    `  ${CLI_PRIMARY_COMMAND} task-groups update <projectId> <groupId> [--name "..."] [--order 2]`,
+    `  ${CLI_PRIMARY_COMMAND} task-groups delete <projectId> <groupId>`,
     "",
     "Comments:",
     `  ${CLI_PRIMARY_COMMAND} comments list <projectId> <taskId>`,
@@ -268,6 +282,20 @@ function renderCommentDetail(data: Record<string, unknown>): string {
   return lines.join("\n")
 }
 
+function renderTaskGroupDetail(data: Record<string, unknown>): string {
+  const group = data.taskGroup as Record<string, unknown>
+  return renderKeyValueLines([
+    ["ID", group.id],
+    ["Project", group.projectId],
+    ["Name", group.name],
+    ["Icon", group.icon],
+    ["Icon color", group.iconColor],
+    ["Order", group.order],
+    ["Created", formatDateSummary(group.createdAt)],
+    ["Updated", formatDateSummary(group.updatedAt)],
+  ])
+}
+
 function renderNoteDetail(data: Record<string, unknown>): string {
   const note = data.note as Record<string, unknown>
   const author = note.author as {
@@ -387,10 +415,39 @@ export function renderCommandResponse(
           updatedAt: formatDateSummary(note.updatedAt),
         }))
       )
+    case "task-groups-list":
+      return renderTable(
+        [
+          { key: "id", label: "ID", maxWidth: 18 },
+          { key: "name", label: "Name", maxWidth: 30 },
+          { key: "icon", label: "Icon", maxWidth: 14 },
+          { key: "iconColor", label: "Color", maxWidth: 10 },
+          { key: "order", label: "Order", maxWidth: 6 },
+          { key: "updatedAt", label: "Updated", maxWidth: 24 },
+        ],
+        (response.data.taskGroups as Array<Record<string, unknown>>).map(
+          (group) => ({
+            ...group,
+            updatedAt: formatDateSummary(group.updatedAt),
+          })
+        )
+      )
     case "project-detail":
       return renderProjectDetail(response.data)
     case "task-detail":
       return renderTaskDetail(response.data)
+    case "task-group-detail":
+      return renderTaskGroupDetail(response.data)
+    case "task-deleted":
+      return renderKeyValueLines([
+        ["Status", "deleted"],
+        ["Task", response.data.deletedTaskId],
+      ])
+    case "task-group-deleted":
+      return renderKeyValueLines([
+        ["Status", "deleted"],
+        ["Task group", response.data.deletedGroupId],
+      ])
     case "comment-detail":
       return renderCommentDetail(response.data)
     case "note-detail":

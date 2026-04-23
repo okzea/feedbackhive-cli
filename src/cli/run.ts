@@ -2,14 +2,20 @@ import {
   CreateCommentSchema,
   CreateNoteSchema,
   CreateProjectSchema,
+  CreateTaskGroupSchema,
   CreateTaskSchema,
+  DeleteTaskGroupSchema,
+  DeleteTaskSchema,
   GetNoteSchema,
   GetProjectSchema,
   GetTaskSchema,
   ListCommentsSchema,
   ListNotesSchema,
   ListProjectsSchema,
+  ListTaskGroupsSchema,
   ListTasksSchema,
+  UpdateTaskGroupSchema,
+  UpdateTaskSchema,
 } from "../schemas"
 import {
   normalizeBaseUrl,
@@ -54,7 +60,11 @@ type OutputKind =
   | "notes-list"
   | "project-detail"
   | "projects-list"
+  | "task-deleted"
   | "task-detail"
+  | "task-group-deleted"
+  | "task-group-detail"
+  | "task-groups-list"
   | "tasks-list"
 
 type CommandResponse = {
@@ -171,6 +181,41 @@ const COMMAND_VALIDATION_SPECS: Record<
       maxPositionals: 0,
     },
   },
+  "task-groups": {
+    create: {
+      allowedFlags: new Set([
+        "icon",
+        "icon-color",
+        "name",
+        "order",
+        "project-id",
+      ]),
+      maxPositionals: 1,
+      positionalFlagNames: ["project-id"],
+    },
+    delete: {
+      allowedFlags: new Set(["group-id", "project-id"]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "group-id"],
+    },
+    list: {
+      allowedFlags: new Set(["project-id"]),
+      maxPositionals: 1,
+      positionalFlagNames: ["project-id"],
+    },
+    update: {
+      allowedFlags: new Set([
+        "group-id",
+        "icon",
+        "icon-color",
+        "name",
+        "order",
+        "project-id",
+      ]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "group-id"],
+    },
+  },
   tasks: {
     create: {
       allowedFlags: new Set([
@@ -188,6 +233,11 @@ const COMMAND_VALIDATION_SPECS: Record<
       maxPositionals: 1,
       positionalFlagNames: ["project-id"],
     },
+    delete: {
+      allowedFlags: new Set(["project-id", "task-id"]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "task-id"],
+    },
     get: {
       allowedFlags: new Set(["project-id", "task-id"]),
       maxPositionals: 2,
@@ -204,6 +254,26 @@ const COMMAND_VALIDATION_SPECS: Record<
       ]),
       maxPositionals: 1,
       positionalFlagNames: ["project-id"],
+    },
+    update: {
+      allowedFlags: new Set([
+        "assignee-id",
+        "clear-assignee",
+        "clear-due-date",
+        "clear-price",
+        "clear-task-group",
+        "description",
+        "due-date",
+        "price",
+        "priority",
+        "project-id",
+        "status",
+        "task-group-id",
+        "task-id",
+        "title",
+      ]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "task-id"],
     },
   },
 }
@@ -601,8 +671,204 @@ async function executeTasksCommand(
 
       return { kind: "task-detail", data: result }
     }
+    case "update": {
+      const auth = requireAuthConfig(config)
+      const projectId = getPositionalOrFlag(
+        parsed,
+        0,
+        "project-id",
+        "Project ID"
+      )
+      const taskId = getPositionalOrFlag(parsed, 1, "task-id", "Task ID", [
+        "project-id",
+      ])
+
+      const assigneeIdFlag = getStringFlag(parsed.flags, "assignee-id")
+      const clearAssignee = getBooleanFlag(parsed.flags, "clear-assignee")
+      const dueDateFlag = getStringFlag(parsed.flags, "due-date")
+      const clearDueDate = getBooleanFlag(parsed.flags, "clear-due-date")
+      const taskGroupIdFlag = getStringFlag(parsed.flags, "task-group-id")
+      const clearTaskGroup = getBooleanFlag(parsed.flags, "clear-task-group")
+      const priceFlag = getStringFlag(parsed.flags, "price")
+      const clearPrice = getBooleanFlag(parsed.flags, "clear-price")
+
+      if (clearAssignee && assigneeIdFlag !== undefined) {
+        throw new CliError(
+          "Use either --assignee-id or --clear-assignee, not both"
+        )
+      }
+      if (clearDueDate && dueDateFlag !== undefined) {
+        throw new CliError(
+          "Use either --due-date or --clear-due-date, not both"
+        )
+      }
+      if (clearTaskGroup && taskGroupIdFlag !== undefined) {
+        throw new CliError(
+          "Use either --task-group-id or --clear-task-group, not both"
+        )
+      }
+      if (clearPrice && priceFlag !== undefined) {
+        throw new CliError("Use either --price or --clear-price, not both")
+      }
+
+      const assigneeId = clearAssignee ? null : assigneeIdFlag
+      const dueDate = clearDueDate ? null : dueDateFlag
+      const taskGroupId = clearTaskGroup ? null : taskGroupIdFlag
+      const price = clearPrice ? null : priceFlag
+
+      const argumentsInput = UpdateTaskSchema.parse(
+        cleanObject({
+          assigneeId,
+          description: getStringFlag(parsed.flags, "description"),
+          dueDate,
+          price,
+          priority: getStringFlag(parsed.flags, "priority"),
+          projectId,
+          status: getStringFlag(parsed.flags, "status"),
+          taskGroupId,
+          taskId,
+          title: getStringFlag(parsed.flags, "title"),
+        })
+      )
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "update_task",
+      })
+
+      return { kind: "task-detail", data: result }
+    }
+    case "delete": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = DeleteTaskSchema.parse({
+        projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+        taskId: getPositionalOrFlag(parsed, 1, "task-id", "Task ID", [
+          "project-id",
+        ]),
+      })
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "delete_task",
+      })
+
+      return { kind: "task-deleted", data: result }
+    }
     default:
-      throw new CliError("Unknown tasks command. Use list, get, or create.")
+      throw new CliError(
+        "Unknown tasks command. Use list, get, create, update, or delete."
+      )
+  }
+}
+
+async function executeTaskGroupsCommand(
+  parsed: ParsedCliArgs,
+  config: ResolvedCliConfig,
+  fetchImpl?: typeof fetch
+): Promise<CommandResponse> {
+  switch (parsed.action) {
+    case "list": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = ListTaskGroupsSchema.parse({
+        projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+      })
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "list_task_groups",
+      })
+
+      return { kind: "task-groups-list", data: result }
+    }
+    case "create": {
+      const auth = requireAuthConfig(config)
+      const projectId = getPositionalOrFlag(
+        parsed,
+        0,
+        "project-id",
+        "Project ID"
+      )
+      const name = getStringFlag(parsed.flags, "name")
+      if (!name) {
+        throw new CliError("--name is required for task-groups create")
+      }
+      const argumentsInput = CreateTaskGroupSchema.parse(
+        cleanObject({
+          icon: getStringFlag(parsed.flags, "icon"),
+          iconColor: getStringFlag(parsed.flags, "icon-color"),
+          name,
+          order: getNumberFlag(parsed.flags, "order"),
+          projectId,
+        })
+      )
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "create_task_group",
+      })
+
+      return { kind: "task-group-detail", data: result }
+    }
+    case "update": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = UpdateTaskGroupSchema.parse(
+        cleanObject({
+          groupId: getPositionalOrFlag(parsed, 1, "group-id", "Task group ID", [
+            "project-id",
+          ]),
+          icon: getStringFlag(parsed.flags, "icon"),
+          iconColor: getStringFlag(parsed.flags, "icon-color"),
+          name: getStringFlag(parsed.flags, "name"),
+          order: getNumberFlag(parsed.flags, "order"),
+          projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+        })
+      )
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "update_task_group",
+      })
+
+      return { kind: "task-group-detail", data: result }
+    }
+    case "delete": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = DeleteTaskGroupSchema.parse({
+        groupId: getPositionalOrFlag(parsed, 1, "group-id", "Task group ID", [
+          "project-id",
+        ]),
+        projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+      })
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "delete_task_group",
+      })
+
+      return { kind: "task-group-deleted", data: result }
+    }
+    default:
+      throw new CliError(
+        "Unknown task-groups command. Use list, create, update, or delete."
+      )
   }
 }
 
@@ -754,13 +1020,15 @@ async function executeCommand(
       return executeProjectsCommand(parsed, config, fetchImpl)
     case "tasks":
       return executeTasksCommand(parsed, config, fetchImpl)
+    case "task-groups":
+      return executeTaskGroupsCommand(parsed, config, fetchImpl)
     case "comments":
       return executeCommentsCommand(parsed, config, fetchImpl)
     case "notes":
       return executeNotesCommand(parsed, config, fetchImpl)
     default:
       throw new CliError(
-        "Unknown command group. Use auth, projects, tasks, comments, or notes."
+        "Unknown command group. Use auth, projects, tasks, task-groups, comments, or notes."
       )
   }
 }

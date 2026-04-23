@@ -71,9 +71,28 @@ Tasks:
 fbh tasks list <projectId>
 fbh tasks get <projectId> <taskId>
 fbh tasks create <projectId> --title "Ship CLI"
+fbh tasks update <projectId> <taskId> --status done
+fbh tasks update <projectId> <taskId> --task-group-id <groupId>
+fbh tasks update <projectId> <taskId> --clear-task-group
+fbh tasks delete <projectId> <taskId>
 ```
 
 Task detail includes only `commentCount`, not full comment bodies.
+
+Use `--clear-assignee`, `--clear-due-date`, `--clear-task-group`, or
+`--clear-price` on `tasks update` to unset those fields.
+
+Task groups:
+
+```bash
+fbh task-groups list <projectId>
+fbh task-groups create <projectId> --name "Launches"
+fbh task-groups update <projectId> <groupId> --name "Directory Listings"
+fbh task-groups delete <projectId> <groupId>
+```
+
+Deleting a task group detaches any tasks currently assigned to it rather
+than deleting them.
 
 Comments:
 
