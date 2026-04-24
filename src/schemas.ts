@@ -85,6 +85,50 @@ export const CreateTaskSchema = z.object({
   price: z.union([z.string(), z.number(), z.null()]).optional(),
 })
 
+export const UpdateTaskSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  taskId: z.string().min(1, "Task ID is required"),
+  title: z.string().min(1).max(70).optional(),
+  description: z.string().optional(),
+  status: z.string().optional(),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+  assigneeId: z.string().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
+  taskGroupId: z.string().nullable().optional(),
+  price: z.union([z.string(), z.number(), z.null()]).optional(),
+})
+
+export const DeleteTaskSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  taskId: z.string().min(1, "Task ID is required"),
+})
+
+export const ListTaskGroupsSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+})
+
+export const CreateTaskGroupSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  name: z.string().min(1, "Name is required").max(50),
+  icon: z.string().min(1).max(50).optional(),
+  iconColor: z.string().min(1).max(30).optional(),
+  order: z.number().int().optional(),
+})
+
+export const UpdateTaskGroupSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  groupId: z.string().min(1, "Task group ID is required"),
+  name: z.string().min(1).max(50).optional(),
+  icon: z.string().min(1).max(50).optional(),
+  iconColor: z.string().min(1).max(30).optional(),
+  order: z.number().int().optional(),
+})
+
+export const DeleteTaskGroupSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  groupId: z.string().min(1, "Task group ID is required"),
+})
+
 export type ListProjectsInput = z.infer<typeof ListProjectsSchema>
 export type CreateProjectInput = z.infer<typeof CreateProjectSchema>
 export type GetProjectInput = z.infer<typeof GetProjectSchema>
@@ -96,3 +140,9 @@ export type ListNotesInput = z.infer<typeof ListNotesSchema>
 export type GetNoteInput = z.infer<typeof GetNoteSchema>
 export type CreateNoteInput = z.infer<typeof CreateNoteSchema>
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>
+export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>
+export type DeleteTaskInput = z.infer<typeof DeleteTaskSchema>
+export type ListTaskGroupsInput = z.infer<typeof ListTaskGroupsSchema>
+export type CreateTaskGroupInput = z.infer<typeof CreateTaskGroupSchema>
+export type UpdateTaskGroupInput = z.infer<typeof UpdateTaskGroupSchema>
+export type DeleteTaskGroupInput = z.infer<typeof DeleteTaskGroupSchema>

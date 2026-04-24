@@ -5,13 +5,19 @@ export type McpToolName =
   | "create_note"
   | "create_project"
   | "create_task"
+  | "create_task_group"
+  | "delete_task"
+  | "delete_task_group"
   | "get_note"
   | "get_project"
   | "get_task"
   | "list_comments"
   | "list_notes"
   | "list_projects"
+  | "list_task_groups"
   | "list_tasks"
+  | "update_task"
+  | "update_task_group"
 
 type JsonRpcError = {
   error?: {
