@@ -20,6 +20,7 @@ export type McpToolName =
   | "update_task_group"
 
 type JsonRpcError = {
+  id?: unknown
   error?: {
     message?: string
   }
@@ -34,17 +35,40 @@ type JsonRpcError = {
 
 type FetchLike = typeof fetch
 
-function tryParseJsonRpcPayload(rawText: string): JsonRpcError | null {
+function isExpectedJsonRpcPayload(
+  value: unknown,
+  expectedId: number
+): value is JsonRpcError {
+  if (!value || typeof value !== "object") return false
+
+  const payload = value as JsonRpcError
+  if (!("result" in payload) && !("error" in payload)) return false
+
+  return (
+    payload.id === undefined ||
+    payload.id === null ||
+    payload.id === expectedId
+  )
+}
+
+function tryParseJsonRpcPayload(
+  rawText: string,
+  expectedId: number
+): JsonRpcError | null {
   if (!rawText) return null
 
   try {
-    return JSON.parse(rawText) as JsonRpcError
+    const payload = JSON.parse(rawText) as unknown
+    return isExpectedJsonRpcPayload(payload, expectedId) ? payload : null
   } catch {
-    return tryParseSseJsonRpcPayload(rawText)
+    return tryParseSseJsonRpcPayload(rawText, expectedId)
   }
 }
 
-function tryParseSseJsonRpcPayload(rawText: string): JsonRpcError | null {
+function tryParseSseJsonRpcPayload(
+  rawText: string,
+  expectedId: number
+): JsonRpcError | null {
   const events = rawText
     .split(/\r?\n\r?\n+/)
     .map((chunk) => chunk.trim())
@@ -62,7 +86,8 @@ function tryParseSseJsonRpcPayload(rawText: string): JsonRpcError | null {
 
     const candidate = dataLines.join("\n")
     try {
-      return JSON.parse(candidate) as JsonRpcError
+      const payload = JSON.parse(candidate) as unknown
+      if (isExpectedJsonRpcPayload(payload, expectedId)) return payload
     } catch {
       continue
     }
@@ -124,7 +149,7 @@ export async function callMcpTool<T>(input: {
   })
 
   const rawText = await response.text()
-  const payload = tryParseJsonRpcPayload(rawText)
+  const payload = tryParseJsonRpcPayload(rawText, 1)
 
   if (!response.ok) {
     throw new CliError(
