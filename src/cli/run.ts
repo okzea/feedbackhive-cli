@@ -388,6 +388,22 @@ async function validateConnection(
   throw new CliError(message, 1)
 }
 
+async function getSampledProjectCount(
+  config: ResolvedCliConfig,
+  fetchImpl?: typeof fetch
+): Promise<number> {
+  const auth = requireAuthConfig(config)
+  const result = await callMcpTool<{ projects?: Array<Record<string, unknown>> }>({
+    arguments: ListProjectsSchema.parse({ limit: 25 }),
+    baseUrl: auth.url,
+    fetchImpl,
+    token: auth.token,
+    tool: "list_projects",
+  })
+
+  return Array.isArray(result.projects) ? result.projects.length : 0
+}
+
 async function executeAuthCommand(
   parsed: ParsedCliArgs,
   config: ResolvedCliConfig,
@@ -521,7 +537,8 @@ async function executeAuthCommand(
         }
       }
 
-      const result = await validateConnection(config, fetchImpl)
+      await validateConnection(config, fetchImpl)
+      const projectCount = await getSampledProjectCount(config, fetchImpl)
 
       return {
         kind: "auth-status",
@@ -529,7 +546,7 @@ async function executeAuthCommand(
         data: {
           config: configForOutput,
           connected: true,
-          projectCount: 0,
+          projectCount,
         },
       }
     }
