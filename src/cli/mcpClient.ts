@@ -34,6 +34,43 @@ type JsonRpcError = {
 
 type FetchLike = typeof fetch
 
+function tryParseJsonRpcPayload(rawText: string): JsonRpcError | null {
+  if (!rawText) return null
+
+  try {
+    return JSON.parse(rawText) as JsonRpcError
+  } catch {
+    return tryParseSseJsonRpcPayload(rawText)
+  }
+}
+
+function tryParseSseJsonRpcPayload(rawText: string): JsonRpcError | null {
+  const events = rawText
+    .split(/\r?\n\r?\n+/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    const dataLines = event
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean)
+
+    if (dataLines.length === 0) continue
+
+    const candidate = dataLines.join("\n")
+    try {
+      return JSON.parse(candidate) as JsonRpcError
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
 function ensureTrailingSlash(url: string): string {
   return url.endsWith("/") ? url : `${url}/`
 }
@@ -87,15 +124,7 @@ export async function callMcpTool<T>(input: {
   })
 
   const rawText = await response.text()
-  let payload: JsonRpcError | null = null
-
-  if (rawText) {
-    try {
-      payload = JSON.parse(rawText) as JsonRpcError
-    } catch {
-      payload = null
-    }
-  }
+  const payload = tryParseJsonRpcPayload(rawText)
 
   if (!response.ok) {
     throw new CliError(
