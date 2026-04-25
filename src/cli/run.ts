@@ -24,7 +24,7 @@ import {
   type ResolvedCliConfig,
   writeCliConfig,
 } from "./config"
-import { CLI_PRIMARY_COMMAND } from "./constants"
+import { CLI_AUTH_VALIDATE_ROUTE, CLI_PRIMARY_COMMAND } from "./constants"
 import { CliError } from "./errors"
 import { renderCommandResponse } from "./format"
 import {
@@ -356,13 +356,52 @@ async function validateConnection(
   fetchImpl?: typeof fetch
 ) {
   const auth = requireAuthConfig(config)
-  return callMcpTool<{ projects?: Array<Record<string, unknown>> }>({
+  const response = await (fetchImpl ?? fetch)(
+    new URL(CLI_AUTH_VALIDATE_ROUTE, `${auth.url}/`).toString(),
+    {
+      method: "GET",
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${auth.token}`,
+      },
+    }
+  )
+
+  if (response.ok) {
+    return { authenticated: true }
+  }
+
+  const rawText = await response.text()
+  let message = rawText || `Request failed with status ${response.status}`
+
+  if (rawText) {
+    try {
+      const payload = JSON.parse(rawText) as { error?: string }
+      if (payload.error) {
+        message = payload.error
+      }
+    } catch {
+      message = rawText
+    }
+  }
+
+  throw new CliError(message, 1)
+}
+
+async function getSampledProjectCount(
+  config: ResolvedCliConfig,
+  fetchImpl?: typeof fetch
+): Promise<number> {
+  const auth = requireAuthConfig(config)
+  const result = await callMcpTool<{ projects?: Array<Record<string, unknown>> }>({
+    arguments: ListProjectsSchema.parse({ limit: 25 }),
     baseUrl: auth.url,
+    fetchImpl,
     token: auth.token,
     tool: "list_projects",
-    arguments: { limit: 1 },
-    fetchImpl,
   })
+
+  return Array.isArray(result.projects) ? result.projects.length : 0
 }
 
 async function executeAuthCommand(
@@ -498,7 +537,8 @@ async function executeAuthCommand(
         }
       }
 
-      const result = await validateConnection(config, fetchImpl)
+      await validateConnection(config, fetchImpl)
+      const projectCount = await getSampledProjectCount(config, fetchImpl)
 
       return {
         kind: "auth-status",
@@ -506,7 +546,7 @@ async function executeAuthCommand(
         data: {
           config: configForOutput,
           connected: true,
-          projectCount: Array.isArray(result.projects) ? result.projects.length : 0,
+          projectCount,
         },
       }
     }

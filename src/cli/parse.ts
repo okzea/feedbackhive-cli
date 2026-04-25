@@ -112,6 +112,11 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     commandIndexes.add(index)
   }
 
+  const authAliases = new Set(["login", "logout", "status"])
+  if (commandParts.length === 1 && authAliases.has(commandParts[0])) {
+    commandParts.unshift("auth")
+  }
+
   let parsePositionalsOnly = false
 
   for (let index = 0; index < argv.length; index += 1) {

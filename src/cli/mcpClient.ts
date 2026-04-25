@@ -20,6 +20,7 @@ export type McpToolName =
   | "update_task_group"
 
 type JsonRpcError = {
+  id?: unknown
   error?: {
     message?: string
   }
@@ -33,6 +34,67 @@ type JsonRpcError = {
 }
 
 type FetchLike = typeof fetch
+
+function isExpectedJsonRpcPayload(
+  value: unknown,
+  expectedId: number
+): value is JsonRpcError {
+  if (!value || typeof value !== "object") return false
+
+  const payload = value as JsonRpcError
+  if (!("result" in payload) && !("error" in payload)) return false
+
+  return (
+    payload.id === undefined ||
+    payload.id === null ||
+    payload.id === expectedId
+  )
+}
+
+function tryParseJsonRpcPayload(
+  rawText: string,
+  expectedId: number
+): JsonRpcError | null {
+  if (!rawText) return null
+
+  try {
+    const payload = JSON.parse(rawText) as unknown
+    return isExpectedJsonRpcPayload(payload, expectedId) ? payload : null
+  } catch {
+    return tryParseSseJsonRpcPayload(rawText, expectedId)
+  }
+}
+
+function tryParseSseJsonRpcPayload(
+  rawText: string,
+  expectedId: number
+): JsonRpcError | null {
+  const events = rawText
+    .split(/\r?\n\r?\n+/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    const dataLines = event
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean)
+
+    if (dataLines.length === 0) continue
+
+    const candidate = dataLines.join("\n")
+    try {
+      const payload = JSON.parse(candidate) as unknown
+      if (isExpectedJsonRpcPayload(payload, expectedId)) return payload
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
 
 function ensureTrailingSlash(url: string): string {
   return url.endsWith("/") ? url : `${url}/`
@@ -87,15 +149,7 @@ export async function callMcpTool<T>(input: {
   })
 
   const rawText = await response.text()
-  let payload: JsonRpcError | null = null
-
-  if (rawText) {
-    try {
-      payload = JSON.parse(rawText) as JsonRpcError
-    } catch {
-      payload = null
-    }
-  }
+  const payload = tryParseJsonRpcPayload(rawText, 1)
 
   if (!response.ok) {
     throw new CliError(
