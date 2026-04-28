@@ -24,7 +24,11 @@ import {
   type ResolvedCliConfig,
   writeCliConfig,
 } from "./config"
-import { CLI_AUTH_VALIDATE_ROUTE, CLI_PRIMARY_COMMAND } from "./constants"
+import {
+  CLI_AUTH_VALIDATE_ROUTE,
+  CLI_PAT_TOKEN_PREFIX,
+  CLI_PRIMARY_COMMAND,
+} from "./constants"
 import { CliError } from "./errors"
 import { renderCommandResponse } from "./format"
 import {
@@ -351,6 +355,20 @@ async function resolveLoginValue(options: {
   )
 }
 
+function validatePersonalAccessToken(token: string) {
+  if (token.startsWith(CLI_PAT_TOKEN_PREFIX)) return
+
+  if (token.startsWith("fhk_")) {
+    throw new CliError(
+      "This looks like a FeedbackHive API token. The CLI requires a Personal Access Token (PAT), which starts with fhp_."
+    )
+  }
+
+  throw new CliError(
+    "The token must be a FeedbackHive Personal Access Token (PAT) starting with fhp_."
+  )
+}
+
 async function validateConnection(
   config: ResolvedCliConfig,
   fetchImpl?: typeof fetch
@@ -486,6 +504,7 @@ async function executeAuthCommand(
           label: "Personal access token",
           prompt,
         })
+        validatePersonalAccessToken(token)
         normalizedConfig = {
           authMode: "token",
           token,

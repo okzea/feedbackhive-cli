@@ -3,6 +3,7 @@ export const CLI_COMMAND_ALIAS = "feedbackhive"
 export const CLI_DEFAULT_BASE_URL = "https://feedbackhive.app"
 export const CLI_DEFAULT_PAT_EXPIRATION_DAYS = 90
 export const CLI_DEFAULT_PAT_NAME = "FBH CLI"
+export const CLI_PAT_TOKEN_PREFIX = "fhp_"
 export const CLI_AUTH_VALIDATE_ROUTE = "api/cli-auth/validate"
 export const CLI_WEB_AUTH_CALLBACK_PATH = "/callback"
 export const CLI_WEB_AUTH_ROUTE = "api/cli-auth/start"
