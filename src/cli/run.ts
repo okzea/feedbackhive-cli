@@ -171,7 +171,6 @@ const COMMAND_VALIDATION_SPECS: Record<
         "pinned",
         "project-id",
         "title",
-        "unpinned",
       ]),
       maxPositionals: 2,
       positionalFlagNames: ["project-id", "note-id"],
@@ -1016,24 +1015,20 @@ async function executeNotesCommand(
 
       const folderIdFlag = getStringFlag(parsed.flags, "folder-id")
       const clearFolder = getBooleanFlag(parsed.flags, "clear-folder")
-      const pinned = getBooleanFlag(parsed.flags, "pinned")
-      const unpinned = getBooleanFlag(parsed.flags, "unpinned")
 
       if (clearFolder && folderIdFlag !== undefined) {
         throw new CliError("Use either --folder-id or --clear-folder, not both")
       }
-      if (pinned && unpinned) {
-        throw new CliError("Use either --pinned or --unpinned, not both")
-      }
 
       const folderId = clearFolder ? null : folderIdFlag
-      const isPinned = pinned ? true : unpinned ? false : undefined
 
       const argumentsInput = UpdateNoteSchema.parse(
         cleanObject({
           content: getStringFlag(parsed.flags, "content"),
           folderId,
-          isPinned,
+          // --pinned / --no-pinned (or --pinned=false) → true / false; omitted
+          // → undefined (left unchanged). cleanObject keeps an explicit false.
+          isPinned: getBooleanFlag(parsed.flags, "pinned"),
           noteId,
           projectId,
           title: getStringFlag(parsed.flags, "title"),

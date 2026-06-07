@@ -161,7 +161,7 @@ export function renderHelpText(): string {
     `  ${CLI_PRIMARY_COMMAND} notes get <projectId> <noteId>`,
     `  ${CLI_PRIMARY_COMMAND} notes create <projectId> --title "Meeting notes"`,
     `  ${CLI_PRIMARY_COMMAND} notes update <projectId> <noteId> [--title "..."] [--content "<p>...</p>"]`,
-    `  ${CLI_PRIMARY_COMMAND} notes update <projectId> <noteId> --folder-id <folderId> | --clear-folder | --pinned | --unpinned`,
+    `  ${CLI_PRIMARY_COMMAND} notes update <projectId> <noteId> [--folder-id <id> | --clear-folder] [--pinned | --no-pinned]`,
     `  ${CLI_PRIMARY_COMMAND} notes delete <projectId> <noteId>`,
     "",
     "Global options:",
