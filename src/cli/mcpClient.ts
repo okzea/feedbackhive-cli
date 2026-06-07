@@ -6,6 +6,7 @@ export type McpToolName =
   | "create_project"
   | "create_task"
   | "create_task_group"
+  | "delete_note"
   | "delete_task"
   | "delete_task_group"
   | "get_note"
@@ -16,6 +17,7 @@ export type McpToolName =
   | "list_projects"
   | "list_task_groups"
   | "list_tasks"
+  | "update_note"
   | "update_task"
   | "update_task_group"
 

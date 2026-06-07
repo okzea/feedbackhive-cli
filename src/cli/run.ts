@@ -4,6 +4,7 @@ import {
   CreateProjectSchema,
   CreateTaskGroupSchema,
   CreateTaskSchema,
+  DeleteNoteSchema,
   DeleteTaskGroupSchema,
   DeleteTaskSchema,
   GetNoteSchema,
@@ -14,6 +15,7 @@ import {
   ListProjectsSchema,
   ListTaskGroupsSchema,
   ListTasksSchema,
+  UpdateNoteSchema,
   UpdateTaskGroupSchema,
   UpdateTaskSchema,
 } from "../schemas"
@@ -56,6 +58,7 @@ type OutputKind =
   | "comment-detail"
   | "comments-list"
   | "help"
+  | "note-deleted"
   | "note-detail"
   | "notes-list"
   | "project-detail"
@@ -139,6 +142,11 @@ const COMMAND_VALIDATION_SPECS: Record<
       maxPositionals: 1,
       positionalFlagNames: ["project-id"],
     },
+    delete: {
+      allowedFlags: new Set(["note-id", "project-id"]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "note-id"],
+    },
     get: {
       allowedFlags: new Set(["note-id", "project-id"]),
       maxPositionals: 2,
@@ -153,6 +161,19 @@ const COMMAND_VALIDATION_SPECS: Record<
       ]),
       maxPositionals: 1,
       positionalFlagNames: ["project-id"],
+    },
+    update: {
+      allowedFlags: new Set([
+        "clear-folder",
+        "content",
+        "folder-id",
+        "note-id",
+        "pinned",
+        "project-id",
+        "title",
+      ]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "note-id"],
     },
   },
   projects: {
@@ -980,8 +1001,73 @@ async function executeNotesCommand(
 
       return { kind: "note-detail", data: result }
     }
+    case "update": {
+      const auth = requireAuthConfig(config)
+      const projectId = getPositionalOrFlag(
+        parsed,
+        0,
+        "project-id",
+        "Project ID"
+      )
+      const noteId = getPositionalOrFlag(parsed, 1, "note-id", "Note ID", [
+        "project-id",
+      ])
+
+      const folderIdFlag = getStringFlag(parsed.flags, "folder-id")
+      const clearFolder = getBooleanFlag(parsed.flags, "clear-folder")
+
+      if (clearFolder && folderIdFlag !== undefined) {
+        throw new CliError("Use either --folder-id or --clear-folder, not both")
+      }
+
+      const folderId = clearFolder ? null : folderIdFlag
+
+      const argumentsInput = UpdateNoteSchema.parse(
+        cleanObject({
+          content: getStringFlag(parsed.flags, "content"),
+          folderId,
+          // --pinned / --no-pinned (or --pinned=false) → true / false; omitted
+          // → undefined (left unchanged). cleanObject keeps an explicit false.
+          isPinned: getBooleanFlag(parsed.flags, "pinned"),
+          noteId,
+          projectId,
+          title: getStringFlag(parsed.flags, "title"),
+        })
+      )
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "update_note",
+      })
+
+      return { kind: "note-detail", data: result }
+    }
+    case "delete": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = DeleteNoteSchema.parse({
+        noteId: getPositionalOrFlag(parsed, 1, "note-id", "Note ID", [
+          "project-id",
+        ]),
+        projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+      })
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "delete_note",
+      })
+
+      return { kind: "note-deleted", data: result }
+    }
     default:
-      throw new CliError("Unknown notes command. Use list, get, or create.")
+      throw new CliError(
+        "Unknown notes command. Use list, get, create, update, or delete."
+      )
   }
 }
 

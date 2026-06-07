@@ -14,6 +14,7 @@ const FLAG_NAMES_WITHOUT_VALUES = new Set([
   "allow-comments",
   "clear-assignee",
   "clear-due-date",
+  "clear-folder",
   "clear-price",
   "clear-task-group",
   "help",

@@ -72,6 +72,20 @@ export const CreateNoteSchema = z.object({
   isPinned: z.boolean().optional(),
 })
 
+export const UpdateNoteSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  noteId: z.string().min(1, "Note ID is required"),
+  title: z.string().max(200).optional(),
+  content: z.string().optional(),
+  folderId: z.string().nullable().optional(),
+  isPinned: z.boolean().optional(),
+})
+
+export const DeleteNoteSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  noteId: z.string().min(1, "Note ID is required"),
+})
+
 export const CreateTaskSchema = z.object({
   projectId: z.string().min(1, "Project ID is required"),
   title: z.string().min(1, "Title is required").max(70),
@@ -139,6 +153,8 @@ export type CreateCommentInput = z.infer<typeof CreateCommentSchema>
 export type ListNotesInput = z.infer<typeof ListNotesSchema>
 export type GetNoteInput = z.infer<typeof GetNoteSchema>
 export type CreateNoteInput = z.infer<typeof CreateNoteSchema>
+export type UpdateNoteInput = z.infer<typeof UpdateNoteSchema>
+export type DeleteNoteInput = z.infer<typeof DeleteNoteSchema>
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>
 export type DeleteTaskInput = z.infer<typeof DeleteTaskSchema>
