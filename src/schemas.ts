@@ -143,6 +143,32 @@ export const DeleteTaskGroupSchema = z.object({
   groupId: z.string().min(1, "Task group ID is required"),
 })
 
+export const ListNoteFoldersSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+})
+
+export const CreateNoteFolderSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  name: z.string().min(1, "Name is required").max(50),
+  icon: z.string().min(1).max(50).optional(),
+  iconColor: z.string().min(1).max(30).optional(),
+  order: z.number().int().optional(),
+})
+
+export const UpdateNoteFolderSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  folderId: z.string().min(1, "Folder ID is required"),
+  name: z.string().min(1).max(50).optional(),
+  icon: z.string().min(1).max(50).optional(),
+  iconColor: z.string().min(1).max(30).optional(),
+  order: z.number().int().optional(),
+})
+
+export const DeleteNoteFolderSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  folderId: z.string().min(1, "Folder ID is required"),
+})
+
 export type ListProjectsInput = z.infer<typeof ListProjectsSchema>
 export type CreateProjectInput = z.infer<typeof CreateProjectSchema>
 export type GetProjectInput = z.infer<typeof GetProjectSchema>
@@ -162,3 +188,7 @@ export type ListTaskGroupsInput = z.infer<typeof ListTaskGroupsSchema>
 export type CreateTaskGroupInput = z.infer<typeof CreateTaskGroupSchema>
 export type UpdateTaskGroupInput = z.infer<typeof UpdateTaskGroupSchema>
 export type DeleteTaskGroupInput = z.infer<typeof DeleteTaskGroupSchema>
+export type ListNoteFoldersInput = z.infer<typeof ListNoteFoldersSchema>
+export type CreateNoteFolderInput = z.infer<typeof CreateNoteFolderSchema>
+export type UpdateNoteFolderInput = z.infer<typeof UpdateNoteFolderSchema>
+export type DeleteNoteFolderInput = z.infer<typeof DeleteNoteFolderSchema>

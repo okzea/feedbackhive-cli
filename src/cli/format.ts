@@ -10,6 +10,9 @@ type CommandKind =
   | "help"
   | "note-deleted"
   | "note-detail"
+  | "note-folder-deleted"
+  | "note-folder-detail"
+  | "note-folders-list"
   | "notes-list"
   | "project-detail"
   | "projects-list"
@@ -151,6 +154,12 @@ export function renderHelpText(): string {
     `  ${CLI_PRIMARY_COMMAND} task-groups create <projectId> --name "Launches"`,
     `  ${CLI_PRIMARY_COMMAND} task-groups update <projectId> <groupId> [--name "..."] [--order 2]`,
     `  ${CLI_PRIMARY_COMMAND} task-groups delete <projectId> <groupId>`,
+    "",
+    "Note folders:",
+    `  ${CLI_PRIMARY_COMMAND} note-folders list <projectId>`,
+    `  ${CLI_PRIMARY_COMMAND} note-folders create <projectId> --name "Research"`,
+    `  ${CLI_PRIMARY_COMMAND} note-folders update <projectId> <folderId> [--name "..."] [--order 2]`,
+    `  ${CLI_PRIMARY_COMMAND} note-folders delete <projectId> <folderId>`,
     "",
     "Comments:",
     `  ${CLI_PRIMARY_COMMAND} comments list <projectId> <taskId>`,
@@ -300,6 +309,20 @@ function renderTaskGroupDetail(data: Record<string, unknown>): string {
   ])
 }
 
+function renderNoteFolderDetail(data: Record<string, unknown>): string {
+  const folder = data.noteFolder as Record<string, unknown>
+  return renderKeyValueLines([
+    ["ID", folder.id],
+    ["Project", folder.projectId],
+    ["Name", folder.name],
+    ["Icon", folder.icon],
+    ["Icon color", folder.iconColor],
+    ["Order", folder.order],
+    ["Created", formatDateSummary(folder.createdAt)],
+    ["Updated", formatDateSummary(folder.updatedAt)],
+  ])
+}
+
 function renderNoteDetail(data: Record<string, unknown>): string {
   const note = data.note as Record<string, unknown>
   const author = note.author as {
@@ -436,6 +459,23 @@ export function renderCommandResponse(
           })
         )
       )
+    case "note-folders-list":
+      return renderTable(
+        [
+          { key: "id", label: "ID", maxWidth: 18 },
+          { key: "name", label: "Name", maxWidth: 30 },
+          { key: "icon", label: "Icon", maxWidth: 14 },
+          { key: "iconColor", label: "Color", maxWidth: 10 },
+          { key: "order", label: "Order", maxWidth: 6 },
+          { key: "updatedAt", label: "Updated", maxWidth: 24 },
+        ],
+        (response.data.noteFolders as Array<Record<string, unknown>>).map(
+          (folder) => ({
+            ...folder,
+            updatedAt: formatDateSummary(folder.updatedAt),
+          })
+        )
+      )
     case "project-detail":
       return renderProjectDetail(response.data)
     case "task-detail":
@@ -451,6 +491,13 @@ export function renderCommandResponse(
       return renderKeyValueLines([
         ["Status", "deleted"],
         ["Task group", response.data.deletedGroupId],
+      ])
+    case "note-folder-detail":
+      return renderNoteFolderDetail(response.data)
+    case "note-folder-deleted":
+      return renderKeyValueLines([
+        ["Status", "deleted"],
+        ["Note folder", response.data.deletedFolderId],
       ])
     case "comment-detail":
       return renderCommentDetail(response.data)
