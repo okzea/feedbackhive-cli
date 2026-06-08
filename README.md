@@ -109,6 +109,19 @@ fbh notes get <projectId> <noteId>
 fbh notes create <projectId> --title "Kickoff"
 ```
 
+Note folders:
+
+```bash
+fbh note-folders list <projectId>
+fbh note-folders create <projectId> --name "Research"
+fbh note-folders update <projectId> <folderId> --name "Archive"
+fbh note-folders delete <projectId> <folderId>
+```
+
+Deleting a note folder detaches any notes currently in it rather than
+deleting them. Attach a note to a folder with
+`fbh notes update <projectId> <noteId> --folder-id <folderId>`.
+
 ## Config
 
 By default the CLI stores config at:

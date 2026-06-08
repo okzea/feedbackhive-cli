@@ -1,9 +1,11 @@
 import {
   CreateCommentSchema,
+  CreateNoteFolderSchema,
   CreateNoteSchema,
   CreateProjectSchema,
   CreateTaskGroupSchema,
   CreateTaskSchema,
+  DeleteNoteFolderSchema,
   DeleteNoteSchema,
   DeleteTaskGroupSchema,
   DeleteTaskSchema,
@@ -11,10 +13,12 @@ import {
   GetProjectSchema,
   GetTaskSchema,
   ListCommentsSchema,
+  ListNoteFoldersSchema,
   ListNotesSchema,
   ListProjectsSchema,
   ListTaskGroupsSchema,
   ListTasksSchema,
+  UpdateNoteFolderSchema,
   UpdateNoteSchema,
   UpdateTaskGroupSchema,
   UpdateTaskSchema,
@@ -64,6 +68,9 @@ type OutputKind =
   | "help"
   | "note-deleted"
   | "note-detail"
+  | "note-folder-deleted"
+  | "note-folder-detail"
+  | "note-folders-list"
   | "notes-list"
   | "project-detail"
   | "projects-list"
@@ -239,6 +246,41 @@ const COMMAND_VALIDATION_SPECS: Record<
       ]),
       maxPositionals: 2,
       positionalFlagNames: ["project-id", "group-id"],
+    },
+  },
+  "note-folders": {
+    create: {
+      allowedFlags: new Set([
+        "icon",
+        "icon-color",
+        "name",
+        "order",
+        "project-id",
+      ]),
+      maxPositionals: 1,
+      positionalFlagNames: ["project-id"],
+    },
+    delete: {
+      allowedFlags: new Set(["folder-id", "project-id"]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "folder-id"],
+    },
+    list: {
+      allowedFlags: new Set(["project-id"]),
+      maxPositionals: 1,
+      positionalFlagNames: ["project-id"],
+    },
+    update: {
+      allowedFlags: new Set([
+        "folder-id",
+        "icon",
+        "icon-color",
+        "name",
+        "order",
+        "project-id",
+      ]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "folder-id"],
     },
   },
   tasks: {
@@ -952,6 +994,111 @@ async function executeTaskGroupsCommand(
   }
 }
 
+async function executeNoteFoldersCommand(
+  parsed: ParsedCliArgs,
+  config: ResolvedCliConfig,
+  fetchImpl?: typeof fetch
+): Promise<CommandResponse> {
+  switch (parsed.action) {
+    case "list": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = ListNoteFoldersSchema.parse({
+        projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+      })
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "list_note_folders",
+      })
+
+      return { kind: "note-folders-list", data: result }
+    }
+    case "create": {
+      const auth = requireAuthConfig(config)
+      const projectId = getPositionalOrFlag(
+        parsed,
+        0,
+        "project-id",
+        "Project ID"
+      )
+      const name = getStringFlag(parsed.flags, "name")
+      if (!name) {
+        throw new CliError("--name is required for note-folders create")
+      }
+      const argumentsInput = CreateNoteFolderSchema.parse(
+        cleanObject({
+          icon: getStringFlag(parsed.flags, "icon"),
+          iconColor: getStringFlag(parsed.flags, "icon-color"),
+          name,
+          order: getNumberFlag(parsed.flags, "order"),
+          projectId,
+        })
+      )
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "create_note_folder",
+      })
+
+      return { kind: "note-folder-detail", data: result }
+    }
+    case "update": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = UpdateNoteFolderSchema.parse(
+        cleanObject({
+          folderId: getPositionalOrFlag(parsed, 1, "folder-id", "Folder ID", [
+            "project-id",
+          ]),
+          icon: getStringFlag(parsed.flags, "icon"),
+          iconColor: getStringFlag(parsed.flags, "icon-color"),
+          name: getStringFlag(parsed.flags, "name"),
+          order: getNumberFlag(parsed.flags, "order"),
+          projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+        })
+      )
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "update_note_folder",
+      })
+
+      return { kind: "note-folder-detail", data: result }
+    }
+    case "delete": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = DeleteNoteFolderSchema.parse({
+        folderId: getPositionalOrFlag(parsed, 1, "folder-id", "Folder ID", [
+          "project-id",
+        ]),
+        projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+      })
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "delete_note_folder",
+      })
+
+      return { kind: "note-folder-deleted", data: result }
+    }
+    default:
+      throw new CliError(
+        "Unknown note-folders command. Use list, create, update, or delete."
+      )
+  }
+}
+
 async function executeNotesCommand(
   parsed: ParsedCliArgs,
   config: ResolvedCliConfig,
@@ -1167,13 +1314,15 @@ async function executeCommand(
       return executeTasksCommand(parsed, config, fetchImpl)
     case "task-groups":
       return executeTaskGroupsCommand(parsed, config, fetchImpl)
+    case "note-folders":
+      return executeNoteFoldersCommand(parsed, config, fetchImpl)
     case "comments":
       return executeCommentsCommand(parsed, config, fetchImpl)
     case "notes":
       return executeNotesCommand(parsed, config, fetchImpl)
     default:
       throw new CliError(
-        "Unknown command group. Use auth, projects, tasks, task-groups, comments, or notes."
+        "Unknown command group. Use auth, projects, tasks, task-groups, note-folders, comments, or notes."
       )
   }
 }
