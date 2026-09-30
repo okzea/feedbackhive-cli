@@ -15,6 +15,7 @@ export type McpToolName =
   | "get_project"
   | "get_task"
   | "list_comments"
+  | "list_my_tasks"
   | "list_note_folders"
   | "list_notes"
   | "list_projects"
