@@ -35,6 +35,11 @@ export const ListTasksSchema = z.object({
   cursor: z.string().optional(),
 })
 
+export const ListMyTasksSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(50),
+  cursor: z.string().optional(),
+})
+
 export const GetTaskSchema = z.object({
   projectId: z.string().min(1, "Project ID is required"),
   taskId: z.string().min(1, "Task ID is required"),
@@ -173,6 +178,7 @@ export type ListProjectsInput = z.infer<typeof ListProjectsSchema>
 export type CreateProjectInput = z.infer<typeof CreateProjectSchema>
 export type GetProjectInput = z.infer<typeof GetProjectSchema>
 export type ListTasksInput = z.infer<typeof ListTasksSchema>
+export type ListMyTasksInput = z.infer<typeof ListMyTasksSchema>
 export type GetTaskInput = z.infer<typeof GetTaskSchema>
 export type ListCommentsInput = z.infer<typeof ListCommentsSchema>
 export type CreateCommentInput = z.infer<typeof CreateCommentSchema>

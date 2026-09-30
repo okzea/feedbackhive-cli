@@ -69,6 +69,7 @@ Tasks:
 
 ```bash
 fbh tasks list <projectId>
+fbh tasks mine [--limit 50] [--cursor <taskId>]
 fbh tasks get <projectId> <taskId>
 fbh tasks create <projectId> --title "Ship CLI"
 fbh tasks update <projectId> <taskId> --status done
@@ -76,6 +77,12 @@ fbh tasks update <projectId> <taskId> --task-group-id <groupId>
 fbh tasks update <projectId> <taskId> --clear-task-group
 fbh tasks delete <projectId> <taskId>
 ```
+
+`tasks mine` lists the open tasks (not done or cancelled) assigned to the
+logged-in account across all of its projects, most recently updated first.
+With `--json` it returns `{ user: { id, name }, tasks: [...], nextCursor }`,
+where each task carries the same fields as `tasks list` plus `projectTitle`;
+pass `nextCursor` back with `--cursor` for the next page.
 
 Task detail includes only `commentCount`, not full comment bodies.
 

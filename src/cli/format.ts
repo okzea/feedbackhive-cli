@@ -22,6 +22,7 @@ type CommandKind =
   | "task-group-detail"
   | "task-groups-list"
   | "tasks-list"
+  | "tasks-mine"
 
 type CommandResponse = {
   data: Record<string, unknown>
@@ -142,6 +143,7 @@ export function renderHelpText(): string {
     "",
     "Tasks:",
     `  ${CLI_PRIMARY_COMMAND} tasks list <projectId> [--status pending]`,
+    `  ${CLI_PRIMARY_COMMAND} tasks mine [--limit 50] [--cursor <taskId>]`,
     `  ${CLI_PRIMARY_COMMAND} tasks get <projectId> <taskId>`,
     `  ${CLI_PRIMARY_COMMAND} tasks create <projectId> --title "Ship CLI"`,
     `  ${CLI_PRIMARY_COMMAND} tasks update <projectId> <taskId> [--title "..."] [--status done]`,
@@ -179,6 +181,39 @@ export function renderHelpText(): string {
     "Environment:",
     "  FBH_URL, FBH_TOKEN, FBH_CONFIG",
   ].join("\n")
+}
+
+function renderMyTasks(data: Record<string, unknown>): string {
+  const user = data.user as { name?: unknown } | undefined
+  const tasks = (data.tasks as Array<Record<string, unknown>>) ?? []
+  const lines = [
+    `Open tasks assigned to ${stringifyValue(user?.name)}`,
+    "",
+    renderTable(
+      [
+        { key: "id", label: "ID", maxWidth: 18 },
+        { key: "projectTitle", label: "Project", maxWidth: 20 },
+        { key: "title", label: "Title", maxWidth: 28 },
+        { key: "status", label: "Status", maxWidth: 12 },
+        { key: "priority", label: "Priority", maxWidth: 10 },
+        { key: "dueDate", label: "Due", maxWidth: 10 },
+      ],
+      tasks.map((task) => ({
+        ...task,
+        dueDate:
+          typeof task.dueDate === "string" ? task.dueDate.slice(0, 10) : null,
+      }))
+    ),
+  ]
+
+  if (typeof data.nextCursor === "string" && data.nextCursor) {
+    lines.push(
+      "",
+      `More tasks: ${CLI_PRIMARY_COMMAND} tasks mine --cursor ${sanitizeCliText(data.nextCursor)}`
+    )
+  }
+
+  return lines.join("\n")
 }
 
 function renderAuthStatus(
@@ -407,6 +442,8 @@ export function renderCommandResponse(
           })
         )
       )
+    case "tasks-mine":
+      return renderMyTasks(response.data)
     case "comments-list":
       return renderTable(
         [

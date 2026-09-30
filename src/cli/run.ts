@@ -13,6 +13,7 @@ import {
   GetProjectSchema,
   GetTaskSchema,
   ListCommentsSchema,
+  ListMyTasksSchema,
   ListNoteFoldersSchema,
   ListNotesSchema,
   ListProjectsSchema,
@@ -80,6 +81,7 @@ type OutputKind =
   | "task-group-detail"
   | "task-groups-list"
   | "tasks-list"
+  | "tasks-mine"
 
 type CommandResponse = {
   config?: ResolvedCliConfig
@@ -321,6 +323,10 @@ const COMMAND_VALIDATION_SPECS: Record<
       ]),
       maxPositionals: 1,
       positionalFlagNames: ["project-id"],
+    },
+    mine: {
+      allowedFlags: new Set(["cursor", "limit"]),
+      maxPositionals: 0,
     },
     update: {
       allowedFlags: new Set([
@@ -747,6 +753,25 @@ async function executeTasksCommand(
 
       return { kind: "tasks-list", data: result }
     }
+    case "mine": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = ListMyTasksSchema.parse(
+        cleanObject({
+          cursor: getStringFlag(parsed.flags, "cursor"),
+          limit: getNumberFlag(parsed.flags, "limit"),
+        })
+      )
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "list_my_tasks",
+      })
+
+      return { kind: "tasks-mine", data: result }
+    }
     case "get": {
       const auth = requireAuthConfig(config)
       const argumentsInput = GetTaskSchema.parse({
@@ -884,7 +909,7 @@ async function executeTasksCommand(
     }
     default:
       throw new CliError(
-        "Unknown tasks command. Use list, get, create, update, or delete."
+        "Unknown tasks command. Use list, mine, get, create, update, or delete."
       )
   }
 }
