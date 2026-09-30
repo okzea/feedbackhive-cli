@@ -271,7 +271,11 @@ async function createLoopbackTokenListener(
       settled = true
       clearTimeout(timeout)
       server?.close()
-      reject(new CliError(message))
+      const error = new CliError(message)
+      // Before listen() succeeds the caller awaits this promise; afterwards it
+      // awaits waitForToken, so both must see the failure.
+      reject(error)
+      tokenRejecter(error)
     }
 
     const timeout = setTimeout(
@@ -372,9 +376,13 @@ async function createLoopbackTokenListener(
     })
 
     let tokenResolver = (_token: string) => {}
-    const waitForToken = new Promise<string>((tokenResolve) => {
+    let tokenRejecter = (_error: Error) => {}
+    const waitForToken = new Promise<string>((tokenResolve, tokenReject) => {
       tokenResolver = tokenResolve
+      tokenRejecter = tokenReject
     })
+    // Nobody awaits waitForToken when listen() itself fails.
+    waitForToken.catch(() => {})
 
     server.listen(0, "127.0.0.1", () => {
       const address = server?.address()
