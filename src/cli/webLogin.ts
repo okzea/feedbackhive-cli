@@ -70,7 +70,9 @@ async function openBrowserWithSystem(url: string): Promise<boolean> {
     platform === "darwin"
       ? { command: "open", args: [url] }
       : platform === "win32"
-        ? { command: "cmd", args: ["/c", "start", "", url] }
+        ? // Not `cmd /c start`: cmd treats each `&` in the query string as a
+          // command separator and drops everything after the first one.
+          { command: "rundll32", args: ["url.dll,FileProtocolHandler", url] }
         : { command: "xdg-open", args: [url] }
 
   return new Promise((resolve) => {
@@ -240,10 +242,14 @@ export async function loginWithBrowser(options: {
 
   stdout("Opening your browser for FeedbackHive web login...")
   const opened = await openBrowser(authStartUrl)
-  if (!opened) {
-    stdout("Open this URL in your browser to continue:")
-    stdout(authStartUrl)
-  }
+  // A successful spawn does not prove the browser got the full URL, so always
+  // print it for manual recovery.
+  stdout(
+    opened
+      ? "If the browser did not open, or shows an error, open this URL instead:"
+      : "Open this URL in your browser to continue:"
+  )
+  stdout(authStartUrl)
 
   const token = await callbackListener.waitForToken
 
