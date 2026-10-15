@@ -56,6 +56,7 @@ import {
   parseCliArgs,
   type ParsedCliArgs,
 } from "./parse"
+import { isProjectUrl, parseProjectUrl, type ProjectUrlRef } from "./projectUrl"
 import { loginWithBrowser } from "./webLogin"
 
 type EnvLike = Record<string, string | undefined>
@@ -316,6 +317,7 @@ const COMMAND_VALIDATION_SPECS: Record<
       allowedFlags: new Set([
         "assignee-id",
         "cursor",
+        "group",
         "limit",
         "project-id",
         "status",
@@ -724,6 +726,15 @@ async function executeProjectsCommand(
   }
 }
 
+function resolveProjectRef(value: string): ProjectUrlRef {
+  return isProjectUrl(value) ? parseProjectUrl(value) : { projectId: value }
+}
+
+function resolveTaskGroupFilter(value: string | undefined) {
+  const trimmed = value?.trim()
+  return trimmed && trimmed !== "all" ? trimmed : undefined
+}
+
 async function executeTasksCommand(
   parsed: ParsedCliArgs,
   config: ResolvedCliConfig,
@@ -732,13 +743,19 @@ async function executeTasksCommand(
   switch (parsed.action) {
     case "list": {
       const auth = requireAuthConfig(config)
+      const project = resolveProjectRef(
+        getPositionalOrFlag(parsed, 0, "project-id", "Project ID")
+      )
       const argumentsInput = ListTasksSchema.parse(
         cleanObject({
           assigneeId: getStringFlag(parsed.flags, "assignee-id"),
           cursor: getStringFlag(parsed.flags, "cursor"),
           limit: getNumberFlag(parsed.flags, "limit"),
-          projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+          projectId: project.projectId,
           status: getStringFlag(parsed.flags, "status"),
+          taskGroupId: resolveTaskGroupFilter(
+            getStringFlag(parsed.flags, "group") ?? project.taskGroupId
+          ),
           updatedSince: getStringFlag(parsed.flags, "updated-since"),
         })
       )
