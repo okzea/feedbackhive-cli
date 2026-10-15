@@ -68,7 +68,8 @@ fbh projects create --title "Roadmap"
 Tasks:
 
 ```bash
-fbh tasks list <projectId>
+fbh tasks list <projectId> [--group <groupId|uncategorized>]
+fbh tasks list "https://feedbackhive.app/en/projects/<projectId>?group=<groupId>"
 fbh tasks mine [--limit 50] [--cursor <taskId>]
 fbh tasks get <projectId> <taskId>
 fbh tasks create <projectId> --title "Ship CLI"
@@ -77,6 +78,11 @@ fbh tasks update <projectId> <taskId> --task-group-id <groupId>
 fbh tasks update <projectId> <taskId> --clear-task-group
 fbh tasks delete <projectId> <taskId>
 ```
+
+`tasks list` accepts a project page URL in place of `<projectId>`: it takes the
+project id from the path and the Tasks sidebar's selected group from the
+`group` query param. `--group` overrides that param; `uncategorized` lists tasks
+with no group, and `all` (or no group) lists every task.
 
 `tasks mine` lists the open tasks (not done or cancelled) assigned to the
 logged-in account across all of its projects, most recently updated first.

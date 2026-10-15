@@ -30,6 +30,7 @@ export const ListTasksSchema = z.object({
   projectId: z.string().min(1, "Project ID is required"),
   status: z.string().optional(),
   assigneeId: z.string().optional(),
+  taskGroupId: z.string().min(1).optional(),
   updatedSince: z.string().datetime().optional(),
   limit: z.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
