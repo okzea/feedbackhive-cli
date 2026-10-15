@@ -1,11 +1,13 @@
 import { CliError } from "./errors"
 
 export type McpToolName =
+  | "attach_task_file"
   | "create_comment"
   | "create_note"
   | "create_note_folder"
   | "create_project"
   | "create_task"
+  | "create_task_attachment_upload"
   | "create_task_group"
   | "delete_note"
   | "delete_note_folder"
@@ -15,6 +17,7 @@ export type McpToolName =
   | "get_project"
   | "get_task"
   | "list_comments"
+  | "list_task_attachments"
   | "list_my_tasks"
   | "list_note_folders"
   | "list_notes"

@@ -108,6 +108,18 @@ fbh comments list <projectId> <taskId>
 fbh comments create <projectId> <taskId> --content "<p>Looks good</p>"
 ```
 
+Attachments:
+
+```bash
+fbh attachments list <projectId> <taskId>
+fbh attachments upload <projectId> <taskId> ./report.pdf
+fbh attachments upload <projectId> <taskId> ./shot.png --name "Homepage.png"
+```
+
+The content type comes from the file extension; override it with
+`--content-type`. Files go straight to FeedbackHive storage through a
+short-lived upload URL, within your plan's file-size and storage limits.
+
 Notes:
 
 ```bash
