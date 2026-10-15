@@ -18,11 +18,13 @@ import {
   ListNotesSchema,
   ListProjectsSchema,
   ListTaskGroupsSchema,
+  ListTaskAttachmentsSchema,
   ListTasksSchema,
   UpdateNoteFolderSchema,
   UpdateNoteSchema,
   UpdateTaskGroupSchema,
   UpdateTaskSchema,
+  UploadTaskAttachmentSchema,
 } from "../schemas"
 import {
   normalizeBaseUrl,
@@ -56,11 +58,14 @@ import {
   parseCliArgs,
   type ParsedCliArgs,
 } from "./parse"
+import { uploadTaskAttachment } from "./upload"
 import { loginWithBrowser } from "./webLogin"
 
 type EnvLike = Record<string, string | undefined>
 
 type OutputKind =
+  | "attachment-detail"
+  | "attachments-list"
   | "auth-login"
   | "auth-logout"
   | "auth-status"
@@ -117,6 +122,24 @@ const COMMAND_VALIDATION_SPECS: Record<
   string,
   Record<string, CommandValidationSpec>
 > = {
+  attachments: {
+    list: {
+      allowedFlags: new Set(["project-id", "task-id"]),
+      maxPositionals: 2,
+      positionalFlagNames: ["project-id", "task-id"],
+    },
+    upload: {
+      allowedFlags: new Set([
+        "content-type",
+        "file",
+        "name",
+        "project-id",
+        "task-id",
+      ]),
+      maxPositionals: 3,
+      positionalFlagNames: ["project-id", "task-id", "file"],
+    },
+  },
   auth: {
     login: {
       allowedFlags: new Set(["method"]),
@@ -1317,6 +1340,66 @@ async function executeCommentsCommand(
   }
 }
 
+async function executeAttachmentsCommand(
+  parsed: ParsedCliArgs,
+  config: ResolvedCliConfig,
+  fetchImpl?: typeof fetch
+): Promise<CommandResponse> {
+  switch (parsed.action) {
+    case "list": {
+      const auth = requireAuthConfig(config)
+      const argumentsInput = ListTaskAttachmentsSchema.parse({
+        projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+        taskId: getPositionalOrFlag(parsed, 1, "task-id", "Task ID", [
+          "project-id",
+        ]),
+      })
+
+      const result = await callMcpTool<Record<string, unknown>>({
+        arguments: argumentsInput,
+        baseUrl: auth.url,
+        fetchImpl,
+        token: auth.token,
+        tool: "list_task_attachments",
+      })
+
+      return { kind: "attachments-list", data: result }
+    }
+    case "upload": {
+      const auth = requireAuthConfig(config)
+      const input = UploadTaskAttachmentSchema.parse(
+        cleanObject({
+          contentType: getStringFlag(parsed.flags, "content-type"),
+          fileName: getStringFlag(parsed.flags, "name"),
+          filePath: getPositionalOrFlag(parsed, 2, "file", "File", [
+            "project-id",
+            "task-id",
+          ]),
+          projectId: getPositionalOrFlag(parsed, 0, "project-id", "Project ID"),
+          taskId: getPositionalOrFlag(parsed, 1, "task-id", "Task ID", [
+            "project-id",
+          ]),
+        })
+      )
+
+      const result = await uploadTaskAttachment({
+        baseUrl: auth.url,
+        contentType: input.contentType,
+        fetchImpl,
+        fileName: input.fileName,
+        filePath: input.filePath,
+        projectId: input.projectId,
+        taskId: input.taskId,
+        token: auth.token,
+      })
+
+      return { kind: "attachment-detail", data: { attachment: result } }
+    }
+    default:
+      throw new CliError("Unknown attachments command. Use list or upload.")
+  }
+}
+
 async function executeCommand(
   parsed: ParsedCliArgs,
   config: ResolvedCliConfig,
@@ -1331,6 +1414,8 @@ async function executeCommand(
   }
 
   switch (parsed.group) {
+    case "attachments":
+      return executeAttachmentsCommand(parsed, config, fetchImpl)
     case "auth":
       return executeAuthCommand(parsed, config, fetchImpl)
     case "projects":
@@ -1347,7 +1432,7 @@ async function executeCommand(
       return executeNotesCommand(parsed, config, fetchImpl)
     default:
       throw new CliError(
-        "Unknown command group. Use auth, projects, tasks, task-groups, note-folders, comments, or notes."
+        "Unknown command group. Use auth, projects, tasks, task-groups, note-folders, comments, attachments, or notes."
       )
   }
 }

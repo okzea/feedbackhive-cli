@@ -2,6 +2,8 @@ import type { ResolvedCliConfig } from "./config"
 import { CLI_COMMAND_ALIAS, CLI_PRIMARY_COMMAND } from "./constants"
 
 type CommandKind =
+  | "attachment-detail"
+  | "attachments-list"
   | "auth-login"
   | "auth-logout"
   | "auth-status"
@@ -167,6 +169,10 @@ export function renderHelpText(): string {
     `  ${CLI_PRIMARY_COMMAND} comments list <projectId> <taskId>`,
     `  ${CLI_PRIMARY_COMMAND} comments create <projectId> <taskId> --content "<p>Looks good</p>"`,
     "",
+    "Attachments:",
+    `  ${CLI_PRIMARY_COMMAND} attachments list <projectId> <taskId>`,
+    `  ${CLI_PRIMARY_COMMAND} attachments upload <projectId> <taskId> <file> [--name "Audit.pdf"] [--content-type application/pdf]`,
+    "",
     "Notes:",
     `  ${CLI_PRIMARY_COMMAND} notes list <projectId> [--include-content]`,
     `  ${CLI_PRIMARY_COMMAND} notes get <projectId> <noteId>`,
@@ -328,6 +334,25 @@ function renderCommentDetail(data: Record<string, unknown>): string {
   }
 
   return lines.join("\n")
+}
+
+function renderAttachmentDetail(data: Record<string, unknown>): string {
+  const attachment = data.attachment as Record<string, unknown>
+  return renderKeyValueLines([
+    ["ID", attachment.id],
+    ["Task", attachment.taskId],
+    ["File", attachment.fileName],
+    ["Type", attachment.fileType],
+    ["Size", formatFileSize(attachment.fileSize)],
+    ["Added", formatDateSummary(attachment.createdAt)],
+  ])
+}
+
+function formatFileSize(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-"
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
 function renderTaskGroupDetail(data: Record<string, unknown>): string {
@@ -538,6 +563,24 @@ export function renderCommandResponse(
       ])
     case "comment-detail":
       return renderCommentDetail(response.data)
+    case "attachment-detail":
+      return renderAttachmentDetail(response.data)
+    case "attachments-list":
+      return renderTable(
+        [
+          { key: "id", label: "ID", maxWidth: 14 },
+          { key: "fileName", label: "File", maxWidth: 40 },
+          { key: "fileSize", label: "Size", maxWidth: 10 },
+          { key: "createdAt", label: "Added", maxWidth: 24 },
+        ],
+        (response.data.attachments as Array<Record<string, unknown>>).map(
+          (attachment) => ({
+            ...attachment,
+            fileSize: formatFileSize(attachment.fileSize),
+            createdAt: formatDateSummary(attachment.createdAt),
+          })
+        )
+      )
     case "note-detail":
       return renderNoteDetail(response.data)
     case "note-deleted":

@@ -57,6 +57,19 @@ export const CreateCommentSchema = z.object({
   content: z.string().min(1, "Content is required"),
 })
 
+export const ListTaskAttachmentsSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  taskId: z.string().min(1, "Task ID is required"),
+})
+
+export const UploadTaskAttachmentSchema = z.object({
+  projectId: z.string().min(1, "Project ID is required"),
+  taskId: z.string().min(1, "Task ID is required"),
+  filePath: z.string().min(1, "File path is required"),
+  fileName: z.string().min(1).max(255).optional(),
+  contentType: z.string().min(1).max(255).optional(),
+})
+
 export const ListNotesSchema = z.object({
   projectId: z.string().min(1, "Project ID is required"),
   includeContent: z.boolean().default(false),
@@ -182,6 +195,10 @@ export type ListMyTasksInput = z.infer<typeof ListMyTasksSchema>
 export type GetTaskInput = z.infer<typeof GetTaskSchema>
 export type ListCommentsInput = z.infer<typeof ListCommentsSchema>
 export type CreateCommentInput = z.infer<typeof CreateCommentSchema>
+export type ListTaskAttachmentsInput = z.infer<typeof ListTaskAttachmentsSchema>
+export type UploadTaskAttachmentInput = z.infer<
+  typeof UploadTaskAttachmentSchema
+>
 export type ListNotesInput = z.infer<typeof ListNotesSchema>
 export type GetNoteInput = z.infer<typeof GetNoteSchema>
 export type CreateNoteInput = z.infer<typeof CreateNoteSchema>
